@@ -5,12 +5,12 @@ from datetime import datetime
 @dataclass
 class RedditPost:
     post_id: str
-    news_id: str
     subreddit: str
     title: str
     body: str
     author: str
     score: int
+    url: str
     created_utc: datetime
     num_comments: int
 
@@ -33,7 +33,6 @@ class RedditComment:
 
 @dataclass
 class QAPair:
-    news_id: str
     post_id: str
     question_comment_id: str
     answer_comment_id: str
@@ -45,10 +44,10 @@ class QAPair:
 
 @dataclass
 class DiscussionThread:
-    news_id: str
     post_id: str
     thread_id: str
     comments: List[dict]  # Ordered list of comments
 
     def to_dict(self) -> dict:
         return asdict(self)
+

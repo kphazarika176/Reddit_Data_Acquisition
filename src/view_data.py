@@ -22,28 +22,13 @@ def view_stored_data():
     print("="*60)
 
     # Count documents in each collection
-    news_count = db.news.count_documents({})
     posts_count = db.reddit_posts.count_documents({})
     comments_count = db.reddit_comments.count_documents({})
     qa_count = db.qa_pairs.count_documents({})
 
-    print(f"News Articles:   {news_count}")
     print(f"Reddit Posts:    {posts_count}")
     print(f"Reddit Comments: {comments_count}")
     print(f"Q&A Pairs:       {qa_count}")
-
-    print("\n" + "="*60)
-    print("SAMPLE NEWS ARTICLES")
-    print("="*60)
-    for article in db.news.find().sort("_id", -1).limit(3):
-        title = article.get("title", "N/A")
-        url = article.get("url", "N/A")
-        news_id = article.get("news_id", "N/A")
-        keywords = article.get("keywords", [])
-        print(f"\n[News] {safe_str(title)[:70]}")
-        print(f"   ID: {safe_str(news_id)}")
-        print(f"   URL: {safe_str(url)}")
-        print(f"   Keywords: {', '.join(safe_str(kw) for kw in keywords)}")
 
     print("\n" + "="*60)
     print("SAMPLE REDDIT POSTS (with comment count)")
@@ -53,14 +38,12 @@ def view_stored_data():
         title = post.get("title", "N/A")
         post_id = post.get("post_id", "N/A")
         subreddit = post.get("subreddit", "N/A")
-        news_id = post.get("news_id", "N/A")
         
         # Count comments for this post
         comment_count = db.reddit_comments.count_documents({"post_id": post_id})
         
         print(f"\n[Post] {safe_str(title)[:70]}")
         print(f"   Post ID: {safe_str(post_id)}")
-        print(f"   Source News ID: {safe_str(news_id)}")
         print(f"   Subreddit: r/{safe_str(subreddit)}")
         print(f"   Comments: {comment_count}")
 
@@ -87,13 +70,13 @@ def view_stored_data():
         question = qa.get("question", "N/A")
         answer = qa.get("answer", "N/A")
         post_id = qa.get("post_id", "N/A")
-        news_id = qa.get("news_id", "N/A")
         
-        print(f"\n[Q&A] Post: {safe_str(post_id)} | News: {safe_str(news_id)}")
+        print(f"\n[Q&A] Post: {safe_str(post_id)}")
         print(f"   Q: {safe_str(question)[:80]}")
         print(f"   A: {safe_str(answer)[:80]}...")
 
     print("="*60 + "\n")
+
 
 if __name__ == "__main__":
     view_stored_data()

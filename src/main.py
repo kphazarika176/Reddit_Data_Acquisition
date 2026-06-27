@@ -1,52 +1,75 @@
 import sys
-from src.pipeline import ContentPipeline
 from src.database import DatabaseManager
 from src.view_data import view_stored_data
+from src.apify_pipeline import ApifyIngestionPipeline
+from src.qa_generator import QAGenerator
 from src.logger import get_logger
 
 logger = get_logger(__name__)
 
 def main():
     db = DatabaseManager()
-    pipeline = ContentPipeline()
+    apify_pipeline = ApifyIngestionPipeline()
+    qa_generator = QAGenerator()
     
     while True:
         print("\n====== Reddit Data Acquisition ======")
-        print("1. Fresh Scrape")
-        print("2. Update Database")
-        print("3. View Stored Data")
-        print("4. Delete Database")
-        print("5. Exit")
+        print("1. Apify Ingestion (Fresh)")
+        print("2. Apify Ingestion (Update)")
+        print("3. Generate Q&A Pairs (from raw data)")
+        print("4. View Stored Data")
+        print("5. Delete Database")
+        print("6. Exit")
         
         try:
-            choice = input("Enter your choice (1-5): ").strip()
+            choice = input("Enter your choice (1-6): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting...")
             break
             
         if choice == "1":
-            print("\nPerforming Fresh Scrape (Clearing database first)...")
+            print("\nApify Ingestion (Fresh - clearing database first)...")
             db.clear_database()
             try:
-                pipeline.run()
+                subreddit = input("Enter subreddit (default: news): ").strip() or "news"
+                try:
+                    limit = int(input("Enter post limit (default: 10): ").strip() or "10")
+                except ValueError:
+                    limit = 10
+                apify_pipeline.run_full_ingestion(subreddit=subreddit, limit=limit)
             except Exception as e:
-                logger.error(f"Pipeline run failed: {e}", exc_info=True)
+                logger.error(f"Apify ingestion failed: {e}", exc_info=True)
                 
         elif choice == "2":
-            print("\nUpdating Database (Scraping new data)...")
+            print("\nApify Ingestion (Update - adding new data)...")
             try:
-                pipeline.run()
+                subreddit = input("Enter subreddit (default: news): ").strip() or "news"
+                try:
+                    limit = int(input("Enter post limit (default: 10): ").strip() or "10")
+                except ValueError:
+                    limit = 10
+                apify_pipeline.run_full_ingestion(subreddit=subreddit, limit=limit)
             except Exception as e:
-                logger.error(f"Pipeline run failed: {e}", exc_info=True)
+                logger.error(f"Apify ingestion failed: {e}", exc_info=True)
                 
         elif choice == "3":
+            print("\nGenerating Q&A Pairs from raw data...")
+            try:
+                result = qa_generator.run_for_all_posts()
+                print(f"\nQ&A Generation Results:")
+                print(f"  Posts processed: {result['posts_processed']}")
+                print(f"  Q&A pairs generated: {result['qa_pairs_generated']}")
+            except Exception as e:
+                logger.error(f"Q&A generation failed: {e}", exc_info=True)
+                
+        elif choice == "4":
             print("\nViewing Stored Data...")
             try:
                 view_stored_data()
             except Exception as e:
                 logger.error(f"Failed to view stored data: {e}", exc_info=True)
                 
-        elif choice == "4":
+        elif choice == "5":
             confirm = input("Are you sure you want to delete all database collections? (y/N): ").strip().lower()
             if confirm in ("y", "yes"):
                 print("\nDeleting Database...")
@@ -55,12 +78,12 @@ def main():
             else:
                 print("Deletion cancelled.")
                 
-        elif choice == "5":
+        elif choice == "6":
             print("Exiting application. Goodbye!")
             break
             
         else:
-            print("Invalid choice. Please enter a number between 1 and 5.")
+            print("Invalid choice. Please enter a number between 1 and 6.")
 
 if __name__ == "__main__":
     logger.info("Initializing Application...")

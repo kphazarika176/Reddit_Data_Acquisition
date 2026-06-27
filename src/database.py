@@ -12,9 +12,12 @@ class DatabaseManager:
     def __init__(self):
         self.client = MongoClient(
             MONGO_URI,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=30000,
-            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=60000,
+            serverSelectionTimeoutMS=30000,
+            tls=True,
+            tlsAllowInvalidCertificates=True,  # Temporarily allow for testing
+            tlsAllowInvalidHostnames=True,
         )
         self.db: Database = self.client[DB_NAME]
         self._setup_collections()
@@ -23,7 +26,6 @@ class DatabaseManager:
         """Creates unique indexes to prevent duplicate insertions."""
         logger.info("Setting up database indexes to avoid duplicates...")
         
-        self.news.create_index([("news_id", 1)], unique=True)
         self.reddit_posts.create_index([("post_id", 1)], unique=True)
         self.reddit_comments.create_index([("comment_id", 1)], unique=True)
         self.qa_pairs.create_index(
@@ -32,10 +34,6 @@ class DatabaseManager:
         )
         
         logger.info("Database indexes successfully verified.")
-
-    @property
-    def news(self) -> Collection:
-        return self.db["news"]
 
     @property
     def reddit_posts(self) -> Collection:
@@ -51,7 +49,8 @@ class DatabaseManager:
 
     def clear_database(self):
         """Clears all collections in the database."""
-        collections = ["news", "reddit_posts", "reddit_comments", "qa_pairs"]
+        collections = ["reddit_posts", "reddit_comments", "qa_pairs"]
         for col_name in collections:
             count = self.db[col_name].delete_many({})
             logger.info(f"Cleared {col_name}: {count.deleted_count} documents removed.")
+
