@@ -3,6 +3,7 @@ from src.database import DatabaseManager
 from src.view_data import view_stored_data
 from src.apify_pipeline import ApifyIngestionPipeline
 from src.qa_generator import QAGenerator
+from src.excel_exporter import export_to_excel
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,11 +19,12 @@ def main():
         print("2. Apify Ingestion (Update)")
         print("3. Generate Q&A Pairs (from raw data)")
         print("4. View Stored Data")
-        print("5. Delete Database")
-        print("6. Exit")
+        print("5. Export to Excel")
+        print("6. Delete Database")
+        print("7. Exit")
         
         try:
-            choice = input("Enter your choice (1-6): ").strip()
+            choice = input("Enter your choice (1-7): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting...")
             break
@@ -70,7 +72,15 @@ def main():
                 logger.error(f"Failed to view stored data: {e}", exc_info=True)
                 
         elif choice == "5":
-            confirm = input("Are you sure you want to delete all database collections? (y/N): ").strip().lower()
+            print("\nExporting Database to Excel...")
+            try:
+                filename = input("Enter output filename (default: reddit_data_export.xlsx): ").strip() or "reddit_data_export.xlsx"
+                export_to_excel(filename)
+            except Exception as e:
+                logger.error(f"Failed to export to Excel: {e}", exc_info=True)
+                
+        elif choice == "6":
+            confirm = input("Are you sure you want to delete all database tables? (y/N): ").strip().lower()
             if confirm in ("y", "yes"):
                 print("\nDeleting Database...")
                 db.clear_database()
@@ -78,12 +88,12 @@ def main():
             else:
                 print("Deletion cancelled.")
                 
-        elif choice == "6":
+        elif choice == "7":
             print("Exiting application. Goodbye!")
             break
             
         else:
-            print("Invalid choice. Please enter a number between 1 and 6.")
+            print("Invalid choice. Please enter a number between 1 and 7.")
 
 if __name__ == "__main__":
     logger.info("Initializing Application...")
