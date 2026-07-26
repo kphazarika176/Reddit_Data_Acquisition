@@ -14,7 +14,7 @@ def safe_str(text: str) -> str:
 
     try:
         return text.encode(encoding, errors="ignore").decode(encoding)
-    except Exception:
+    except (UnicodeError, LookupError):
         return text.encode("ascii", errors="ignore").decode("ascii")
 
 

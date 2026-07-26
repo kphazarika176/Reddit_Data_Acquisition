@@ -1,7 +1,7 @@
+import sqlite3
 from typing import List, Dict, Any
 from src.database import DatabaseManager
 from src.models.reddit import RedditComment
-from src.processors.tree_builder import CommentTreeBuilder
 from src.processors.qa_detector import QADetector
 from src.logger import get_logger
 
@@ -56,11 +56,8 @@ class QAGenerator:
 
         logger.info(f"Found {len(comments)} comments for post {post_id}")
 
-        # Build comment tree
-        comment_tree = CommentTreeBuilder.build_tree(comments, post_id)
-
-        # Detect Q&A pairs
-        qa_pairs = QADetector.extract_qa_pairs(post_id, comment_tree)
+        # Detect Q&A pairs directly from flat comment list
+        qa_pairs = QADetector.extract_qa_pairs(post_id, comments)
 
         # Store Q&A pairs
         qa_inserted_count = 0
@@ -69,7 +66,7 @@ class QAGenerator:
             try:
                 if self.db.insert_qa_pair(qa.to_dict()):
                     qa_inserted_count += 1
-            except Exception as e:
+            except sqlite3.Error as e:
                 logger.error(f"Error inserting Q&A pair: {e}")
 
         logger.info(

@@ -1,7 +1,7 @@
 import requests
 import time
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +32,7 @@ class ApifyExtractor:
             run_id = data.get("data", {}).get("id")
             logger.info(f"Started Apify actor run: {run_id}")
             return run_id
-        except Exception as e:
+        except requests.RequestException as e:
             logger.error(f"Failed to start Apify actor: {e}")
             return None
 
@@ -68,7 +68,7 @@ class ApifyExtractor:
                 time.sleep(10)
                 attempts += 1
 
-            except Exception as e:
+            except requests.RequestException as e:
                 logger.error(f"Error checking run status: {e}")
                 time.sleep(10)
                 attempts += 1
@@ -104,7 +104,7 @@ class ApifyExtractor:
                 offset += limit
                 time.sleep(1)  # Rate limit
 
-            except Exception as e:
+            except requests.RequestException as e:
                 logger.error(f"Error fetching dataset items: {e}")
                 break
 
@@ -181,10 +181,10 @@ def normalize_apify_post(item: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(created_utc, str):
         try:
             created_utc = datetime.fromisoformat(created_utc.replace("Z", "+00:00"))
-        except:
-            created_utc = datetime.utcnow()
+        except (ValueError, TypeError):
+            created_utc = datetime.now(timezone.utc)
     else:
-        created_utc = datetime.utcnow()
+        created_utc = datetime.now(timezone.utc)
 
     # Get community name and strip off the 'r/' prefix
     subreddit = item.get("parsedCommunityName", item.get("communityName", ""))
@@ -218,10 +218,10 @@ def normalize_apify_comment(item: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(created_utc, str):
         try:
             created_utc = datetime.fromisoformat(created_utc.replace("Z", "+00:00"))
-        except:
-            created_utc = datetime.utcnow()
+        except (ValueError, TypeError):
+            created_utc = datetime.now(timezone.utc)
     else:
-        created_utc = datetime.utcnow()
+        created_utc = datetime.now(timezone.utc)
 
     return {
         "comment_id": comment_id,

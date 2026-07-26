@@ -1,4 +1,6 @@
 import sys
+import sqlite3
+import requests
 from src.database import DatabaseManager
 from src.view_data import view_stored_data
 from src.apify_pipeline import ApifyIngestionPipeline
@@ -39,7 +41,7 @@ def main():
                 except ValueError:
                     limit = 10
                 apify_pipeline.run_full_ingestion(subreddit=subreddit, limit=limit)
-            except Exception as e:
+            except (requests.RequestException, sqlite3.Error, KeyError, TypeError, ValueError) as e:
                 logger.error(f"Apify ingestion failed: {e}", exc_info=True)
                 
         elif choice == "2":
@@ -51,7 +53,7 @@ def main():
                 except ValueError:
                     limit = 10
                 apify_pipeline.run_full_ingestion(subreddit=subreddit, limit=limit)
-            except Exception as e:
+            except (requests.RequestException, sqlite3.Error, KeyError, TypeError, ValueError) as e:
                 logger.error(f"Apify ingestion failed: {e}", exc_info=True)
                 
         elif choice == "3":
@@ -61,14 +63,14 @@ def main():
                 print(f"\nQ&A Generation Results:")
                 print(f"  Posts processed: {result['posts_processed']}")
                 print(f"  Q&A pairs generated: {result['qa_pairs_generated']}")
-            except Exception as e:
+            except (sqlite3.Error, KeyError, TypeError, ValueError) as e:
                 logger.error(f"Q&A generation failed: {e}", exc_info=True)
                 
         elif choice == "4":
             print("\nViewing Stored Data...")
             try:
                 view_stored_data()
-            except Exception as e:
+            except (sqlite3.Error, UnicodeError) as e:
                 logger.error(f"Failed to view stored data: {e}", exc_info=True)
                 
         elif choice == "5":
@@ -76,7 +78,7 @@ def main():
             try:
                 filename = input("Enter output filename (default: reddit_data_export.xlsx): ").strip() or "reddit_data_export.xlsx"
                 export_to_excel(filename)
-            except Exception as e:
+            except (sqlite3.Error, OSError) as e:
                 logger.error(f"Failed to export to Excel: {e}", exc_info=True)
                 
         elif choice == "6":

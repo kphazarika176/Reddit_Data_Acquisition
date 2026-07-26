@@ -1,3 +1,4 @@
+import sqlite3
 from src.database import DatabaseManager
 from src.extractors.apify_extractor import (
     ApifyExtractor,
@@ -48,7 +49,7 @@ class ApifyIngestionPipeline:
                             f"Post {post_data['post_id']} already exists. Skipping."
                         )
 
-                except Exception as e:
+                except (sqlite3.Error, KeyError, TypeError, ValueError) as e:
                     logger.error(f"Error inserting post: {e}")
 
         else:
@@ -63,7 +64,7 @@ class ApifyIngestionPipeline:
                     if self.db.insert_comment(comment_data):
                         comment_count += 1
 
-                except Exception as e:
+                except (sqlite3.Error, KeyError, TypeError, ValueError) as e:
                     logger.error(f"Error inserting comment: {e}")
 
         else:
