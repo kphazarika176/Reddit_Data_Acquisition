@@ -1,3 +1,4 @@
+import html
 import requests
 import time
 from typing import List, Dict, Any, Optional
@@ -5,6 +6,30 @@ from datetime import datetime, timezone
 from src.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def clean_reddit_post_text(text: str) -> str:
+    """Decodes HTML entities and strips Reddit RSS submission boilerplate."""
+    if not text:
+        return ""
+    
+    # Unescape HTML entities (&#32; -> space, &#39; -> ', &quot; -> ", &amp; -> &)
+    cleaned = html.unescape(str(text)).strip()
+    
+    # Strip submission tagline boilerplate like "submitted by /u/user [link] [comments]"
+    if "submitted by" in cleaned and "[link]" in cleaned:
+        parts = cleaned.split("submitted by")
+        main_content = parts[0].strip()
+        return main_content
+        
+    return cleaned
+
+
+def clean_reddit_comment_text(text: str) -> str:
+    """Decodes HTML entities in comment bodies."""
+    if not text:
+        return ""
+    return html.unescape(str(text)).strip()
 
 
 class ApifyExtractor:
@@ -191,11 +216,14 @@ def normalize_apify_post(item: Dict[str, Any]) -> Dict[str, Any]:
     if subreddit.startswith("r/"):
         subreddit = subreddit[2:]
 
+    title = clean_reddit_post_text(item.get("title", ""))
+    body = clean_reddit_post_text(item.get("body", ""))
+
     return {
         "post_id": post_id,
         "subreddit": subreddit,
-        "title": item.get("title", ""),
-        "body": item.get("body", ""),
+        "title": title,
+        "body": body,
         "author": item.get("username", "unknown"),
         "score": item.get("upVotes", 0),
         "url": item.get("url", ""),
@@ -223,13 +251,16 @@ def normalize_apify_comment(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         created_utc = datetime.now(timezone.utc)
 
+    body = clean_reddit_comment_text(item.get("body", ""))
+
     return {
         "comment_id": comment_id,
         "post_id": post_id,
         "parent_id": parent_id,
         "author": item.get("username", "unknown"),
-        "body": item.get("body", ""),
+        "body": body,
         "score": item.get("upVotes", 0),
         "depth": item.get("depth", 0),
         "created_utc": created_utc
     }
+

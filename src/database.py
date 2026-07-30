@@ -1,3 +1,4 @@
+import html
 import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -56,7 +57,39 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_qa_post ON qa_pairs(post_id);
         """)
         self.conn.commit()
+        self.clean_existing_data()
         logger.info("SQLite schema ready.")
+
+    def clean_existing_data(self):
+        """Retroactively unescapes HTML entities and cleans Reddit submission boilerplate in existing rows."""
+        cur = self.conn.cursor()
+
+        # Clean posts
+        posts = cur.execute("SELECT post_id, title, body FROM posts").fetchall()
+        for p in posts:
+            title_clean = html.unescape(p["title"] or "").strip()
+            body_raw = html.unescape(p["body"] or "").strip()
+            if "submitted by" in body_raw and "[link]" in body_raw:
+                body_raw = body_raw.split("submitted by")[0].strip()
+            if title_clean != p["title"] or body_raw != p["body"]:
+                cur.execute("UPDATE posts SET title = ?, body = ? WHERE post_id = ?", (title_clean, body_raw, p["post_id"]))
+
+        # Clean comments
+        comments = cur.execute("SELECT comment_id, body FROM comments").fetchall()
+        for c in comments:
+            body_clean = html.unescape(c["body"] or "").strip()
+            if body_clean != c["body"]:
+                cur.execute("UPDATE comments SET body = ? WHERE comment_id = ?", (body_clean, c["comment_id"]))
+
+        # Clean QA pairs
+        qa_pairs = cur.execute("SELECT rowid, question, answer FROM qa_pairs").fetchall()
+        for q in qa_pairs:
+            q_clean = html.unescape(q["question"] or "").strip()
+            a_clean = html.unescape(q["answer"] or "").strip()
+            if q_clean != q["question"] or a_clean != q["answer"]:
+                cur.execute("UPDATE qa_pairs SET question = ?, answer = ? WHERE rowid = ?", (q_clean, a_clean, q["rowid"]))
+
+        self.conn.commit()
 
     @staticmethod
     def _iso(value) -> str:
@@ -157,6 +190,13 @@ class DatabaseManager:
         """)
         self.conn.commit()
         logger.info("All tables dropped.")
+
+    def clear_qa_pairs(self):
+        """Clears all rows from qa_pairs table so fresh Q&A pairs can be generated."""
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM qa_pairs")
+        logger.info(f"Cleared qa_pairs table: {cur.rowcount} rows removed.")
+        self.conn.commit()
 
     def clear_database(self):
         """Equivalent of old Mongo clear_database() — deletes rows but keeps schema."""

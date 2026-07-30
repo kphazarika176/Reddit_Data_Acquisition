@@ -78,6 +78,7 @@ class QAGenerator:
     def run(self, post_ids: List[str] = None) -> Dict[str, int]:
         """Process all posts or specific posts and generate Q&A pairs."""
         logger.info("Starting Q&A generation from raw SQLite data...")
+        self.db.clear_qa_pairs()
 
         if post_ids:
             posts = self.db.get_posts_by_ids(post_ids)

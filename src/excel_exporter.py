@@ -63,10 +63,8 @@ def export_to_excel(output_filename: str = "reddit_data_export.xlsx") -> str:
                 "title",
                 "body",
                 "author",
-                "score",
                 "url",
                 "created_utc",
-                "num_comments",
             ],
         },
         {
@@ -78,8 +76,6 @@ def export_to_excel(output_filename: str = "reddit_data_export.xlsx") -> str:
                 "parent_id",
                 "author",
                 "body",
-                "score",
-                "depth",
                 "created_utc",
             ],
         },
@@ -92,7 +88,6 @@ def export_to_excel(output_filename: str = "reddit_data_export.xlsx") -> str:
                 "post_id",
                 "question",
                 "answer",
-                "score_signal",
             ],
         },
     ]
@@ -169,7 +164,16 @@ def export_to_excel(output_filename: str = "reddit_data_export.xlsx") -> str:
 
     filepath = os.path.join(project_root, output_filename)
 
-    wb.save(filepath)
+    try:
+        wb.save(filepath)
+    except PermissionError:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base, ext = os.path.splitext(output_filename)
+        fallback_filename = f"{base}_{timestamp}{ext}"
+        filepath = os.path.join(project_root, fallback_filename)
+        wb.save(filepath)
+        print(f"\n[NOTE] File '{output_filename}' is currently open in Excel.")
+        print(f"[NOTE] Saved export to fallback file: '{fallback_filename}'")
 
     print("\n====== SQLite to Excel Export Summary ======")
 
