@@ -13,6 +13,9 @@ class RedditPost:
     url: str
     created_utc: datetime
     num_comments: int
+    sentiment_score: float = 0.0
+    sentiment_label: str = "neutral"
+    keywords: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -27,6 +30,9 @@ class RedditComment:
     score: int
     depth: int
     created_utc: datetime
+    sentiment_score: float = 0.0
+    sentiment_label: str = "neutral"
+    keywords: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -38,6 +44,10 @@ class QAPair:
     answer_comment_id: str
     question: str
     answer: str
+    score_signal: int = 0
+    match_type: str = "unverified"
+    verification_status: str = "unverified_best_effort"
+    confidence_score: float = 0.5
 
     def to_dict(self) -> dict:
         return asdict(self)

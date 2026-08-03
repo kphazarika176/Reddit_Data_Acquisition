@@ -42,14 +42,15 @@ def view_stored_data():
         title = post.get("title", "N/A")
         post_id = post.get("post_id", "N/A")
         subreddit = post.get("subreddit", "N/A")
-
-        # Count comments for this post
-        comment_count = len(db.get_comments_for_post(post_id))
+        score = post.get("score", 0)
+        num_comments = post.get("num_comments", 0)
+        sentiment = post.get("sentiment_label", "neutral")
+        keywords = post.get("keywords", "")
 
         print(f"\n[Post] {safe_str(title)[:70]}")
-        print(f"   Post ID: {safe_str(post_id)}")
-        print(f"   Subreddit: r/{safe_str(subreddit)}")
-        print(f"   Comments: {comment_count}")
+        print(f"   Post ID: {safe_str(post_id)} | Subreddit: r/{safe_str(subreddit)}")
+        print(f"   Score: {score} | Comments: {num_comments}")
+        print(f"   Sentiment: {sentiment} ({post.get('sentiment_score', 0.0)}) | Keywords: {safe_str(keywords)[:50]}")
 
     print("\n" + "=" * 60)
     print("SAMPLE REDDIT COMMENTS (latest 3)")
@@ -60,10 +61,15 @@ def view_stored_data():
         author = comment.get("author", "N/A")
         post_id = comment.get("post_id", "N/A")
         parent_id = comment.get("parent_id", "N/A")
+        score = comment.get("score", 0)
+        depth = comment.get("depth", 0)
+        sentiment = comment.get("sentiment_label", "neutral")
+        keywords = comment.get("keywords", "")
 
         print(f"\n[Comment] u/{safe_str(author)}")
-        print(f"   Post ID: {safe_str(post_id)}")
-        print(f"   Parent ID: {safe_str(parent_id)}")
+        print(f"   Post ID: {safe_str(post_id)} | Parent ID: {safe_str(parent_id)}")
+        print(f"   Score: {score} | Depth: {depth}")
+        print(f"   Sentiment: {sentiment} ({comment.get('sentiment_score', 0.0)}) | Keywords: {safe_str(keywords)[:50]}")
         print(f"   Body: {safe_str(body)[:80]}...")
 
     print("\n" + "=" * 60)
@@ -74,8 +80,12 @@ def view_stored_data():
         question = qa.get("question", "N/A")
         answer = qa.get("answer", "N/A")
         post_id = qa.get("post_id", "N/A")
+        match_type = qa.get("match_type", "unverified")
+        status = qa.get("verification_status", "unverified_best_effort")
+        confidence = qa.get("confidence_score", 0.5)
 
         print(f"\n[Q&A] Post: {safe_str(post_id)}")
+        print(f"   Match Tier: {match_type} | Status: {status} | Confidence: {confidence}")
         print(f"   Q: {safe_str(question)[:80]}")
         print(f"   A: {safe_str(answer)[:80]}...")
 

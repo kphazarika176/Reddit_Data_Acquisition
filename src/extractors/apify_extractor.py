@@ -1,9 +1,17 @@
 import html
-import requests
+import socket
 import time
+import requests
+import urllib3.util.connection as urllib3_cn
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from src.logger import get_logger
+
+# Force IPv4 socket resolution to prevent Windows IPv6 DNS getaddrinfo timeouts [Errno 11002/11001]
+def _allowed_gai_family():
+    return socket.AF_INET
+
+urllib3_cn.allowed_gai_family = _allowed_gai_family
 
 logger = get_logger(__name__)
 
@@ -41,8 +49,8 @@ class ApifyExtractor:
         self.api_token = api_token
         self.actor_id = actor_id
 
-    def _start_actor(self, run_input: Dict[str, Any]) -> Optional[str]:
-        """Starts the Apify actor and returns the run ID."""
+    def _start_actor(self, run_input: Dict[str, Any], max_retries: int = 3) -> Optional[str]:
+        """Starts the Apify actor with automatic retries for transient network/DNS errors."""
         url = f"{self.BASE_URL}/acts/{self.actor_id}/runs"
 
         headers = {
@@ -50,16 +58,21 @@ class ApifyExtractor:
             "Content-Type": "application/json"
         }
 
-        try:
-            response = requests.post(url, json=run_input, headers=headers, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-            run_id = data.get("data", {}).get("id")
-            logger.info(f"Started Apify actor run: {run_id}")
-            return run_id
-        except requests.RequestException as e:
-            logger.error(f"Failed to start Apify actor: {e}")
-            return None
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.post(url, json=run_input, headers=headers, timeout=60)
+                response.raise_for_status()
+                data = response.json()
+                run_id = data.get("data", {}).get("id")
+                logger.info(f"Started Apify actor run: {run_id}")
+                return run_id
+            except requests.RequestException as e:
+                logger.warning(f"Attempt {attempt}/{max_retries} failed to start Apify actor: {e}")
+                if attempt < max_retries:
+                    time.sleep(3 * attempt)
+                else:
+                    logger.error(f"All {max_retries} attempts to start Apify actor failed.")
+                    return None
 
     def _wait_for_completion(self, run_id: str, max_wait_minutes: int = 15) -> Optional[str]:
         """Waits for the actor run to complete and returns the dataset ID."""
@@ -141,19 +154,35 @@ class ApifyExtractor:
             logger.error("APIFY_API_TOKEN is not set")
             return [], []
 
-        logger.info(f"Fetching data from r/{subreddit} via Apify (limit={limit})...")
+        logger.info(f"Fetching data from r/{subreddit} via Apify actor '{self.actor_id}' (limit={limit})...")
 
-        # Minimal run input (only what's strictly necessary)
-        run_input = {
-            "startUrls": [{"url": f"https://www.reddit.com/r/{subreddit}/"}],
-            "skipComments": False,
-            "maxPostCount": limit,
-            "maxItems": limit * 3,
-            "scrollTimeout": 40,
-            "proxy": {
-                "useApifyProxy": True
+        # Select schema depending on actor ID
+        if "harshmaur" in self.actor_id:
+            run_input = {
+                "startUrls": [{"url": f"https://www.reddit.com/r/{subreddit}/"}],
+                "maxPostsCount": limit,
+                "crawlCommentsPerPost": True,
+                "maxCommentsPerPost": 50,
+                "maxCommentsCount": limit * 50,
+                "proxy": {
+                    "useApifyProxy": True
+                }
             }
-        }
+        else:
+            run_input = {
+                "startUrls": [{"url": f"https://www.reddit.com/r/{subreddit}/"}],
+                "skipComments": False,
+                "maxPostCount": limit,
+                "maxComments": limit * 20,
+                "maxCommentDepth": 5,
+                "commentsMode": "ALL",
+                "sortCommentsBy": "TOP",
+                "maxItems": limit * 25,
+                "scrollTimeout": 40,
+                "proxy": {
+                    "useApifyProxy": True
+                }
+            }
 
         # Start the actor
         run_id = self._start_actor(run_input)
@@ -175,9 +204,10 @@ class ApifyExtractor:
         comments = []
 
         for item in items:
-            if item.get("dataType") == "post":
+            data_type = item.get("dataType")
+            if data_type == "post":
                 posts.append(item)
-            elif item.get("dataType") == "comment":
+            elif data_type == "comment":
                 comments.append(item)
 
         logger.info(f"Extracted {len(posts)} posts and {len(comments)} comments")
@@ -195,14 +225,13 @@ class ApifyExtractor:
 
 
 def normalize_apify_post(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalizes an Apify post item to our RedditPost format, using the actual fields from trudax/reddit-scraper-lite."""
+    """Normalizes an Apify post item to our RedditPost format, supporting harshmaur/reddit-scraper and trudax/reddit-scraper-lite."""
 
-    # Extract raw fields from the item (based on official README examples)
     post_id = item.get("id", f"t3_{item.get('parsedId', '')}")
     if not post_id.startswith("t3_"):
         post_id = f"t3_{post_id}"
 
-    created_utc = item.get("createdAt")
+    created_utc = item.get("createdAt") or item.get("crawledAt")
     if isinstance(created_utc, str):
         try:
             created_utc = datetime.fromisoformat(created_utc.replace("Z", "+00:00"))
@@ -212,37 +241,72 @@ def normalize_apify_post(item: Dict[str, Any]) -> Dict[str, Any]:
         created_utc = datetime.now(timezone.utc)
 
     # Get community name and strip off the 'r/' prefix
-    subreddit = item.get("parsedCommunityName", item.get("communityName", ""))
+    subreddit = item.get("parsedCommunityName", item.get("communityName", item.get("subredditName", "")))
     if subreddit.startswith("r/"):
         subreddit = subreddit[2:]
 
     title = clean_reddit_post_text(item.get("title", ""))
     body = clean_reddit_post_text(item.get("body", ""))
 
+    author = item.get("authorName", item.get("username", item.get("author", "unknown")))
+    score = item.get("upVotes", item.get("score", 0))
+    url = item.get("postUrl", item.get("url", ""))
+    num_comments = item.get("commentsCount", item.get("numberOfComments", item.get("numComments", 0)))
+
     return {
         "post_id": post_id,
         "subreddit": subreddit,
         "title": title,
         "body": body,
-        "author": item.get("username", "unknown"),
-        "score": item.get("upVotes", 0),
-        "url": item.get("url", ""),
+        "author": author,
+        "score": score,
+        "url": url,
         "created_utc": created_utc,
-        "num_comments": item.get("numberOfComments", 0)
+        "num_comments": num_comments
     }
 
 
 def normalize_apify_comment(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalizes an Apify comment item to our RedditComment format, using the actual fields from trudax/reddit-scraper-lite."""
+    """
+    Normalizes an Apify comment item to our RedditComment format.
+    Robustly captures parent_id and calculates comment depth for nested trees.
+    """
 
     comment_id = item.get("id", f"t1_{item.get('parsedId', '')}")
     if not comment_id.startswith("t1_"):
         comment_id = f"t1_{comment_id}"
 
-    post_id = item.get("postId", "")
-    parent_id = item.get("parentId", item.get("postId", ""))
+    post_id = item.get("postId", item.get("post_id", ""))
+    if post_id and not post_id.startswith("t3_"):
+        post_id = f"t3_{post_id}"
 
-    created_utc = item.get("createdAt")
+    # Extract parent ID from possible field aliases
+    raw_parent = (
+        item.get("parentId")
+        or item.get("parent_id")
+        or item.get("replyToId")
+        or item.get("parentCommentId")
+        or post_id
+    )
+
+    parent_id = str(raw_parent) if raw_parent else post_id
+    if parent_id and not parent_id.startswith("t1_") and not parent_id.startswith("t3_"):
+        if parent_id == post_id.replace("t3_", "") or parent_id == post_id:
+            parent_id = f"t3_{parent_id}" if not parent_id.startswith("t3_") else parent_id
+        else:
+            parent_id = f"t1_{parent_id}"
+
+    # Determine depth
+    depth = item.get("depth", item.get("commentDepth"))
+    if depth is None:
+        depth = 0 if (parent_id == post_id or parent_id.startswith("t3_")) else 1
+    else:
+        try:
+            depth = int(depth)
+        except (ValueError, TypeError):
+            depth = 0
+
+    created_utc = item.get("createdAt") or item.get("crawledAt")
     if isinstance(created_utc, str):
         try:
             created_utc = datetime.fromisoformat(created_utc.replace("Z", "+00:00"))
@@ -252,15 +316,17 @@ def normalize_apify_comment(item: Dict[str, Any]) -> Dict[str, Any]:
         created_utc = datetime.now(timezone.utc)
 
     body = clean_reddit_comment_text(item.get("body", ""))
+    author = item.get("authorName", item.get("username", item.get("author", "unknown")))
+    score = item.get("upVotes", item.get("score", 0))
 
     return {
         "comment_id": comment_id,
         "post_id": post_id,
         "parent_id": parent_id,
-        "author": item.get("username", "unknown"),
+        "author": author,
         "body": body,
-        "score": item.get("upVotes", 0),
-        "depth": item.get("depth", 0),
+        "score": score,
+        "depth": depth,
         "created_utc": created_utc
     }
 

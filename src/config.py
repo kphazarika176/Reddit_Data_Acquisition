@@ -9,7 +9,7 @@ load_dotenv(dotenv_path=project_root / ".env")
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/reddit_news.db")
 DB_PATH = SQLITE_DB_PATH
 
-# Apify API settings - use working trudax/reddit-scraper-lite
+# Apify API settings - default to top-rated harshmaur/reddit-scraper
 APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN", "")
-APIFY_ACTOR_ID = os.getenv("APIFY_ACTOR_ID", "trudax/reddit-scraper-lite")
+APIFY_ACTOR_ID = os.getenv("APIFY_ACTOR_ID", "harshmaur/reddit-scraper")
 

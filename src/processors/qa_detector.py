@@ -131,25 +131,43 @@ class QADetector:
             ]
 
             best_answer = None
+            match_type = "unverified"
+            verification_status = "unverified_best_effort"
+            confidence_score = 0.5
+
             if direct_replies:
                 best_answer = direct_replies[0]
+                match_type = "direct_reply"
+                verification_status = "verified_direct_reply"
+                confidence_score = 0.95
             elif sibling_replies:
                 best_answer = sibling_replies[0]
+                match_type = "thread_sibling"
+                verification_status = "unverified_thread_sibling"
+                confidence_score = 0.70
             elif fallback_replies:
                 best_answer = fallback_replies[0]
+                match_type = "fallback_top_score"
+                verification_status = "unverified_fallback"
+                confidence_score = 0.40
 
             if best_answer:
                 used_answer_ids.add(best_answer.get('comment_id'))
 
                 question_text = html.unescape(question_c.get('body', '')).strip()
                 answer_text = html.unescape(best_answer.get('body', '')).strip()
+                score_sig = question_c.get('score', 0) + best_answer.get('score', 0)
 
                 qa_pairs.append(QAPair(
                     post_id=post_id,
                     question_comment_id=q_id,
                     answer_comment_id=best_answer.get('comment_id'),
                     question=question_text,
-                    answer=answer_text
+                    answer=answer_text,
+                    score_signal=score_sig,
+                    match_type=match_type,
+                    verification_status=verification_status,
+                    confidence_score=confidence_score
                 ))
 
         logger.info(f"Detected {len(qa_pairs)} valid Q&A pairs in post {post_id}.")
