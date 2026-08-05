@@ -21,7 +21,9 @@ A modular, self-contained ETL & NLP pipeline that collects Reddit discussions us
 
 ---
 
-# Architecture
+# Architecture & Detailed Pipeline Flow
+
+> For a complete visual flowchart, sequence diagrams, and stage-by-stage data lifecycle documentation, see **[flow.md](flow.md)**.
 
 ```text
                Apify Reddit Scraper
